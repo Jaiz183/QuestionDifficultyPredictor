@@ -69,20 +69,40 @@ def update_theta_beta(data, lr, theta, beta):
     M = len(beta)
     params_matrix = theta @ np.ones((1, M)) - np.ones((N, 1)) @ beta.T
 
-    data_complement = 1 - data
-    # Replace all NaN spots with 0 to with-hold from sum.
-    del_theta_one = np.where(np.isnan(data), 0, data_complement) @ np.ones(
+    # Better version! Less convoluted.
+    # Ensure that NaN entries are not counted in sum.
+    # Theta gradient comp.
+    del_theta_one = np.where(np.isnan(data), 0, data) @ np.ones(
         (M, 1))
     del_theta_two = np.where(np.isnan(data), 0, sigmoid(
         params_matrix)) @ np.ones((M, 1))
-    del_theta = -del_theta_one + del_theta_two
+    del_theta = del_theta_one - del_theta_two
 
-    del_beta_one = np.where(np.isnan(data.T), 0, data_complement.T) @ np.ones(
+    # Beta gradient comp.
+    del_beta_one = np.where(np.isnan(data.T), 0, data.T) @ np.ones(
         (N, 1))
     del_beta_two = np.where(np.isnan(data.T), 0, sigmoid(
         params_matrix).T) @ np.ones((N, 1))
-    del_beta = del_beta_one - del_beta_two
+    del_beta = -del_beta_one + del_beta_two
 
+    # Old version which is more convoluted.
+    # params_matrix = -params_matrix
+    #
+    # data_complement = 1 - data
+    # # Replace all NaN spots with 0 to with-hold from sum.
+    # del_theta_one = np.where(np.isnan(data), 0, data_complement) @ np.ones(
+    #     (M, 1))
+    # del_theta_two = np.where(np.isnan(data), 0, sigmoid(
+    #     params_matrix)) @ np.ones((M, 1))
+    # del_theta = -del_theta_one + del_theta_two
+    #
+    # del_beta_one = np.where(np.isnan(data.T), 0, data_complement.T) @ np.ones(
+    #     (N, 1))
+    # del_beta_two = np.where(np.isnan(data.T), 0, sigmoid(
+    #     params_matrix).T) @ np.ones((N, 1))
+    # del_beta = del_beta_one - del_beta_two
+
+    # Grad. desc. update.
     theta = theta + lr * del_theta
     beta = beta + lr * del_beta
 
@@ -118,7 +138,6 @@ def irt(data, val_data, lr, iterations):
         print("NLLK: {} \t Score: {}".format(neg_lld, score))
         theta, beta = update_theta_beta(data, lr, theta, beta)
 
-    # TODO: You may change the return values to achieve what you want.
     return theta, beta, val_acc_lst
 
 
@@ -154,9 +173,9 @@ def main():
     # code, report the validation and test accuracy.                    #
     #####################################################################
     # learning_rates = [0.05]
-    learning_rates = [0.05, 0.1, 0.2]
+    learning_rates = [0.0001]
     # num_iters = [100]
-    num_iters = [50, 100, 200]
+    num_iters = [50]
     for learning_rate in learning_rates:
         for num_iter in num_iters:
             theta, beta, val_accs = irt(sparse_matrix, val_data,
