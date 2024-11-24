@@ -5,6 +5,7 @@ from utils import (
     load_train_sparse,
 )
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 def sigmoid(x):
@@ -115,30 +116,44 @@ def update_theta_beta(data, lr, theta, beta):
 def irt(data, val_data, lr, iterations):
     """Train IRT model.
 
-    You may optionally replace the function arguments to receive a matrix.
-
     :param data: a sparse matrix.
     :param val_data: A dictionary {user_id: list, question_id: list,
     is_correct: list}
     :param lr: float
     :param iterations: int
-    :return: (theta, beta, val_acc_lst)
+    :return: (theta,
+    beta, val_acc_lst,
+    negative llds for train dataset, negative llds for valid dataset)
     """
     N = len(data)
     M = len(data[0])
     theta = np.zeros((N, 1))
     beta = np.zeros((M, 1))
 
+    # Convert val_data to matrix.
+    val_data_matrix = np.empty((N, M))
+    users = val_data['user_id']
+    questions = val_data['question_id']
+    is_correct = val_data['is_correct']
+    for i in range(len(is_correct)):
+        val_data_matrix[users[i]][questions[i]] = is_correct[i]
+
     val_acc_lst = []
+    neg_lld_train_lst = []
+    neg_lld_valid_lst = []
 
     for i in range(iterations):
         neg_lld = neg_log_likelihood(data, theta=theta, beta=beta)
+        neg_lld_val = neg_log_likelihood(val_data_matrix, theta=theta,
+                                         beta=beta)
         score = evaluate(data=val_data, theta=theta, beta=beta)
         val_acc_lst.append(score)
-        print("NLLK: {} \t Score: {}".format(neg_lld, score))
+        neg_lld_train_lst.append(neg_lld)
+        neg_lld_valid_lst.append(neg_lld_val)
+        # print("NLLK: {} \t Score: {}".format(neg_lld, score))
         theta, beta = update_theta_beta(data, lr, theta, beta)
 
-    return theta, beta, val_acc_lst
+    return theta, beta, val_acc_lst, neg_lld_train_lst, neg_lld_valid_lst
 
 
 def evaluate(data, theta, beta):
@@ -160,6 +175,28 @@ def evaluate(data, theta, beta):
         data["is_correct"])
 
 
+def plot_statistics(val_accs, train_llds, val_llds):
+    fig, axs = plt.subplots(3, 1, figsize=(10, 20), layout='constrained')
+    num_iters = list(range(len(val_accs)))
+    axs[0].plot(num_iters, val_accs)
+    axs[0].set_xlabel('Iteration')
+    axs[0].set_ylabel('Validation Acc.')
+    axs[0].set_title('Validation Accuracy')
+
+    axs[1].plot(num_iters, train_llds)
+    axs[1].set_xlabel('Iteration')
+    axs[1].set_ylabel('Negative LLD')
+    axs[1].set_title('Training Negative LLD')
+
+    print(val_llds)
+    axs[2].plot(num_iters, val_llds)
+    axs[2].set_xlabel('Iteration')
+    axs[2].set_ylabel('Negative LLD')
+    axs[2].set_title('Validation Negative LLD')
+
+    plt.show()
+
+
 def main():
     train_data = load_train_csv("./data")
     # You may optionally use the sparse matrix.
@@ -168,29 +205,44 @@ def main():
     test_data = load_public_test_csv("./data")
 
     #####################################################################
-    # TODO:                                                             #
-    # Tune learning rate and number of iterations. With the implemented #
-    # code, report the validation and test accuracy.                    #
+    # (c)
+    # Tune learning rate and number of iterations. With the implemented
+    # code, report the validation and test accuracy.
     #####################################################################
-    # learning_rates = [0.05]
+    # Store hyperparams to retrieve max val accuracy later.
+    hyperparams = []
     learning_rates = [0.0001]
-    # num_iters = [100]
-    num_iters = [50]
+    # learning_rates = [0.01, 0.005, 0.001, 0.0005, 0.0001]
+    num_iters = [200]
+    # num_iters = [25, 50, 100, 200]
     for learning_rate in learning_rates:
         for num_iter in num_iters:
-            theta, beta, val_accs = irt(sparse_matrix, val_data,
-                                        lr=learning_rate, iterations=num_iter)
+            theta, beta, val_accs, neg_llds_train, neg_llds_val = irt(
+                sparse_matrix, val_data,
+                lr=learning_rate, iterations=num_iter)
+            hyperparams.append(
+                (val_accs, theta, beta, neg_llds_train, neg_llds_val))
             print(
                 f'LR {learning_rate} and NR {num_iter} has validation accuracy {val_accs[-1]}')
-    #####################################################################
-    #                       END OF YOUR CODE                            #
-    #####################################################################
+
+    val_accs, theta, beta, neg_llds_train, neg_llds_val = max(hyperparams,
+                                                              key=lambda elt:
+                                                              elt[0][-1])
+    # print(
+    # f'theta = {theta}, beta = {beta} have max validation accuracy {val_accs[-1]}')
+
+    # Plot.
+    # print(neg_llds_val)
+    plot_statistics(val_accs, neg_llds_train, neg_llds_val)
 
     #####################################################################
-    # TODO:                                                             #
-    # Implement part (d)                                                #
+    # (d)
     #####################################################################
-    pass
+    M = len(sparse_matrix[0])
+    N = len(sparse_matrix)
+
+    # Pick questions
+    questions = np.random.choice(np.arange(M), 3)
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
