@@ -50,6 +50,8 @@ class AutoEncoder(nn.Module):
         super(AutoEncoder, self).__init__()
 
         # Define linear functions.
+
+        #Changes made to the initial starter code here
         self.g = nn.Linear(num_question, k)
         self.h = nn.Linear(k, num_question)
 
@@ -73,7 +75,7 @@ class AutoEncoder(nn.Module):
         # Implement the function as described in the docstring.             #
         # Use sigmoid activations for f and g.                              #
         #####################################################################
-        out = inputs
+        out = torch.sigmoid(self.h(torch.sigmoid(self.g(inputs))))
         #####################################################################
         #                       END OF YOUR CODE                            #
         #####################################################################
@@ -95,18 +97,21 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
     """
     # TODO: Add a regularizer to the cost function.
 
+
     # Tell PyTorch you are training the model.
     model.train()
 
     # Define optimizers and loss function.
     optimizer = optim.SGD(model.parameters(), lr=lr)
     num_student = train_data.shape[0]
-
+    
     for epoch in range(0, num_epoch):
         train_loss = 0.0
 
         for user_id in range(num_student):
             inputs = Variable(zero_train_data[user_id]).unsqueeze(0)
+
+
             target = inputs.clone()
 
             optimizer.zero_grad()
@@ -116,7 +121,14 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
             nan_mask = np.isnan(train_data[user_id].unsqueeze(0).numpy())
             target[nan_mask] = output[nan_mask]
 
+            
+           
             loss = torch.sum((output - target) ** 2.0)
+
+
+            #Added this line to original code
+            l2_reg = model.get_weight_norm()
+            loss = loss + lamb * l2_reg 
             loss.backward()
 
             train_loss += loss.item()
@@ -168,21 +180,22 @@ def main():
     # validation set.                                                   #
     #####################################################################
     # Set model hyperparameters.
-    k = None
-    model = None
+    hyper = [10, 50, 100, 200, 500]
+    for k in hyper:
+        model = AutoEncoder(train_matrix.shape[1], k)
 
-    # Set optimization hyperparameters.
-    lr = None
-    num_epoch = None
-    lamb = None
+        # Set optimization hyperparameters.
+        lr = 0.04
+        num_epoch = 20
+        #lamb = 0.01
+        #lamb = 0.005
+        lamb = 0.004
 
-    train(model, lr, lamb, train_matrix, zero_train_matrix, valid_data, num_epoch)
+        train(model, lr, lamb, train_matrix, zero_train_matrix, valid_data, num_epoch)
     # Next, evaluate your network on validation/test data
 
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
-
-
 if __name__ == "__main__":
     main()
