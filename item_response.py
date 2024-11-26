@@ -113,25 +113,26 @@ def update_theta_beta(data, lr, theta, beta):
     return theta, beta
 
 
-def irt(data, val_data, lr, iterations):
+def irt(data_matrix, data_dict, val_data, lr, iterations):
     """Train IRT model.
 
-    :param data: a sparse matrix.
+    :param data_matrix: a sparse matrix.
     :param val_data: A dictionary {user_id: list, question_id: list,
     is_correct: list}
     :param lr: float
     :param iterations: int
     :return: (theta,
     beta, val_acc_lst,
-    negative llds for train dataset, negative llds for valid dataset)
+    negative llds for train dataset, negative llds for valid dataset, train_acc_lst)
     """
-    N = len(data)
-    M = len(data[0])
-    theta = np.zeros((N, 1))
-    beta = np.zeros((M, 1))
+    N = len(data_matrix)
+    M = len(data_matrix[0])
+    theta = np.ones((N, 1)) * 0
+    beta = np.ones((M, 1)) * 0
 
     # Convert val_data to matrix.
     val_data_matrix = np.empty((N, M))
+    val_data_matrix[:] = np.nan
     users = val_data['user_id']
     questions = val_data['question_id']
     is_correct = val_data['is_correct']
@@ -141,19 +142,23 @@ def irt(data, val_data, lr, iterations):
     val_acc_lst = []
     neg_lld_train_lst = []
     neg_lld_valid_lst = []
+    train_acc_lst = []
 
     for i in range(iterations):
-        neg_lld = neg_log_likelihood(data, theta=theta, beta=beta)
+        neg_lld = neg_log_likelihood(data_matrix, theta=theta, beta=beta)
         neg_lld_val = neg_log_likelihood(val_data_matrix, theta=theta,
                                          beta=beta)
-        score = evaluate(data=val_data, theta=theta, beta=beta)
-        val_acc_lst.append(score)
+        val_score = evaluate(data=val_data, theta=theta, beta=beta)
+        train_score = evaluate(data_dict, theta, beta)
+
+        val_acc_lst.append(val_score)
         neg_lld_train_lst.append(neg_lld)
         neg_lld_valid_lst.append(neg_lld_val)
+        train_acc_lst.append(train_score)
         # print("NLLK: {} \t Score: {}".format(neg_lld, score))
-        theta, beta = update_theta_beta(data, lr, theta, beta)
+        theta, beta = update_theta_beta(data_matrix, lr, theta, beta)
 
-    return theta, beta, val_acc_lst, neg_lld_train_lst, neg_lld_valid_lst
+    return theta, beta, val_acc_lst, neg_lld_train_lst, neg_lld_valid_lst, train_acc_lst
 
 
 def evaluate(data, theta, beta):
@@ -175,26 +180,40 @@ def evaluate(data, theta, beta):
         data["is_correct"])
 
 
-def plot_statistics(val_accs, train_llds, val_llds):
+def plot_statistics(val_accs, train_llds, val_llds, train_accs):
     fig, axs = plt.subplots(3, 1, figsize=(10, 20), layout='constrained')
     num_iters = list(range(len(val_accs)))
     axs[0].plot(num_iters, val_accs)
     axs[0].set_xlabel('Iteration')
     axs[0].set_ylabel('Validation Acc.')
-    axs[0].set_title('Validation Accuracy')
 
     axs[1].plot(num_iters, train_llds)
     axs[1].set_xlabel('Iteration')
     axs[1].set_ylabel('Negative LLD')
     axs[1].set_title('Training Negative LLD')
 
-    print(val_llds)
+    # print(val_llds)
     axs[2].plot(num_iters, val_llds)
     axs[2].set_xlabel('Iteration')
     axs[2].set_ylabel('Negative LLD')
     axs[2].set_title('Validation Negative LLD')
 
+    # print(val_llds)
+    axs[0].plot(num_iters, train_accs)
+    axs[0].set_xlabel('Iteration')
+    axs[0].set_ylabel('Train Acc.')
+    axs[0].set_title('Accuracy')
+    axs[0].legend(['Val. Acc.', 'Train Acc.'])
+
     plt.show()
+
+
+def compute_prob_correct(betas: np.ndarray, thetas: np.ndarray,
+                         question_id: int):
+    beta = betas[question_id]
+    probabilities = np.exp(thetas - beta) / 1 + np.exp(thetas - beta)
+
+    return probabilities
 
 
 def main():
@@ -211,29 +230,36 @@ def main():
     #####################################################################
     # Store hyperparams to retrieve max val accuracy later.
     hyperparams = []
+    # learning_rates = [0.0001]
     learning_rates = [0.0001]
-    # learning_rates = [0.01, 0.005, 0.001, 0.0005, 0.0001]
-    num_iters = [200]
-    # num_iters = [25, 50, 100, 200]
+    # num_iters = [200,]
+    num_iters = [100]
     for learning_rate in learning_rates:
         for num_iter in num_iters:
-            theta, beta, val_accs, neg_llds_train, neg_llds_val = irt(
-                sparse_matrix, val_data,
+            theta, beta, val_accs, neg_llds_train, neg_llds_val, train_accs = irt(
+                sparse_matrix, train_data, val_data,
                 lr=learning_rate, iterations=num_iter)
             hyperparams.append(
-                (val_accs, theta, beta, neg_llds_train, neg_llds_val))
+                (val_accs, theta, beta, neg_llds_train, neg_llds_val,
+                 train_accs))
             print(
                 f'LR {learning_rate} and NR {num_iter} has validation accuracy {val_accs[-1]}')
 
-    val_accs, theta, beta, neg_llds_train, neg_llds_val = max(hyperparams,
-                                                              key=lambda elt:
-                                                              elt[0][-1])
-    # print(
-    # f'theta = {theta}, beta = {beta} have max validation accuracy {val_accs[-1]}')
+    val_accs, theta, beta, neg_llds_train, neg_llds_val, train_accs = max(
+        hyperparams,
+        key=lambda elt:
+        elt[0][-1])
+    # Report validation accuracy.
+    print(
+        f'theta_1 = {theta[0]}, beta_1 = {beta[0]} have max validation accuracy {val_accs[-1]} and train accuracy {train_accs[-1]}')
 
     # Plot.
-    # print(neg_llds_val)
-    plot_statistics(val_accs, neg_llds_train, neg_llds_val)
+    plot_statistics(val_accs, neg_llds_train, neg_llds_val, train_accs)
+
+    # Report test accuracy.
+    test_accuracy = evaluate(test_data, theta, beta)
+    print(
+        f'theta_1 = {theta[0]}, beta_1 = {beta[0]} have test accuracy {test_accuracy}')
 
     #####################################################################
     # (d)
@@ -241,8 +267,13 @@ def main():
     M = len(sparse_matrix[0])
     N = len(sparse_matrix)
 
-    # Pick questions
+    # Pick 3 questions.
     questions = np.random.choice(np.arange(M), 3)
+    fig, axs = plt.subplots(1, 1, figsize=(10, 20), layout='constrained')
+    for question in questions:
+        prob_values = compute_prob_correct(beta, theta, question)
+        axs.plot(theta, prob_values)
+
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
