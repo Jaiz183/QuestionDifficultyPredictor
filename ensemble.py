@@ -38,17 +38,34 @@ class Learner:
         - hyper: a dictionary with any hyperparameters needed for the model (dict)
     """
 
-    def __init__(self, name, hyper):
+    def __init__(self, model, name, hyper):
+        self.model = model
         self.name = name
         self.hyper = hyper
+        self.fitted = False
 
-    def learn(self, matrix):
+    def fit(self, matrix):
         """
         Given the sparse matrix of students as rows and questions as columns, 
         and using the dictionary attribute of hyperparameters `self.hyper`,
-        return a matrix with the Nans filled.
+        fit the model.
+
+        This should be run before self.predict is called -- self.model
+        will be fit and then predictions can be made.
+
+        self.fitted should be set to True in the end of this function
         """
         raise NotImplementedError
+
+    def predict(self, matrix):
+        """
+        Given a sparse matrix (of students as rows and questions as columns)
+        predict missing values based on the fit model.
+
+        Assumes self.fit has already been called.
+        """
+        raise NotImplementedError
+    
 
 
 class KNNLearner(Learner):
@@ -57,28 +74,39 @@ class KNNLearner(Learner):
     """
     def __init__(self, k, name="KNN"):
         hyper = {"k": k}
-        super().__init__(name=name, hyper=hyper)
+        model = KNNImputer(n_neighbors=k)
+        super().__init__(name=name, model = model, hyper=hyper)
     
-    def learn(self, matrix):
-        nbrs = KNNImputer(n_neighbors=self.hyper['k'])
-        mat = nbrs.fit_transform(matrix)
-        return mat
+    def fit(self, matrix):
+        self.model.fit(matrix)
+        self.fitted = True
+    
+    def predict(self, matrix):
+        if not self.fitted:
+            raise BaseException("Call self.fit before self.predict!")
+        return self.model.transform(matrix)
 
 
-def ensemble_predict(ensemble, learner, display=False):
-    pred_mats = np.array([None for _ in range(3)])
+def ensemble_predict(orig_matrix, ensemble, learner, display=False):
+    n = len(ensemble)
+    height, width = orig_matrix.shape
+    pred_mats = np.zeros((n, height, width))
 
     for i in range(len(ensemble)):
-        tsamp = ensemble[i]
-        mat = learner.learn(tsamp)
+        bag = ensemble[i]
+        learner.fit(bag)
+        mat = learner.predict(orig_matrix)
         pred_mats[i] = mat
         if display:
             singular_acc = sparse_matrix_evaluate(test_data, mat)
             print(f"singular_acc: {singular_acc}")
-        
-    stacked = np.stack(pred_mats, axis=2)
-    avg = np.mean(stacked, axis=2)
-    avg_rounded = avg.round(decimals=0)
+    
+    # stacked = np.stack(pred_mats, axis=2)
+    avg = np.mean(pred_mats, axis=0)
+    # avg_rounded = avg.round(decimals=0)
+
+    # print(avg_rounded)
+    return avg
     
     return avg_rounded
 
@@ -91,7 +119,7 @@ if __name__ == "__main__":
     ensemble = bagging(sparse_matrix, 3)
     
     # ---- KNN ----
-    k = 8
+    k = 11
     knn_learner = KNNLearner(k=k)
 
     # ---- Prob ----
@@ -100,8 +128,10 @@ if __name__ == "__main__":
     # ---- NN ----
     ...
 
-    final_mat = ensemble_predict(ensemble, knn_learner, display=True)
+    final_mat = ensemble_predict(sparse_matrix, ensemble, knn_learner, display=True)
     acc = sparse_matrix_evaluate(test_data, final_mat)
     print(f"ensemble_acc: {acc}")
-    print(f"original_acc: {sparse_matrix_evaluate(test_data, knn_learner.learn(sparse_matrix))}")    
 
+    knn_learner.fit(sparse_matrix)
+    orig_mat_res = knn_learner.predict(sparse_matrix)
+    print(f"original_acc: {sparse_matrix_evaluate(test_data, orig_mat_res)}")    
