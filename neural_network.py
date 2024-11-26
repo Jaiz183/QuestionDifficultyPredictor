@@ -127,7 +127,7 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
 
 
             #Added this line to original code
-            l2_reg = sum(param.norm(2) ** 2 for param in model.parameters())
+            l2_reg = model.get_weight_norm()
             loss = loss + lamb * l2_reg 
             loss.backward()
 
@@ -185,9 +185,11 @@ def main():
         model = AutoEncoder(train_matrix.shape[1], k)
 
         # Set optimization hyperparameters.
-        lr = 0.001
-        num_epoch = 100
-        lamb = 0.02
+        lr = 0.04
+        num_epoch = 20
+        #lamb = 0.01
+        #lamb = 0.005
+        lamb = 0.004
 
         train(model, lr, lamb, train_matrix, zero_train_matrix, valid_data, num_epoch)
     # Next, evaluate your network on validation/test data
