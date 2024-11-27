@@ -142,7 +142,7 @@ def ensemble_predict(orig_matrix, ensemble, learner, display=False):
         pred_mats[i] = mat
         if display:
             singular_acc = sparse_matrix_evaluate(test_data, mat)
-            print(f"singular_acc: {singular_acc}")
+            print(f"[{learner.name}] singular_acc: {singular_acc}")
 
     # stacked = np.stack(pred_mats, axis=2)
     avg = np.mean(pred_mats, axis=0)
@@ -180,7 +180,8 @@ if __name__ == "__main__":
 
     knn_learner.fit(sparse_matrix)
     orig_mat_res = knn_learner.predict(sparse_matrix)
-    print(f"[KNN] original_acc: {sparse_matrix_evaluate(test_data, orig_mat_res)}")
+    print(
+        f"[KNN] original_acc: {sparse_matrix_evaluate(test_data, orig_mat_res)}")
 
     # ---- IRT Ensemble ----
     final_mat = ensemble_predict(sparse_matrix, ensemble, knn_learner,
