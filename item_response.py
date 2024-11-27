@@ -86,23 +86,6 @@ def update_theta_beta(data, lr, theta, beta):
         params_matrix).T) @ np.ones((N, 1))
     del_beta = -del_beta_one + del_beta_two
 
-    # Old version which is more convoluted.
-    # params_matrix = -params_matrix
-    #
-    # data_complement = 1 - data
-    # # Replace all NaN spots with 0 to with-hold from sum.
-    # del_theta_one = np.where(np.isnan(data), 0, data_complement) @ np.ones(
-    #     (M, 1))
-    # del_theta_two = np.where(np.isnan(data), 0, sigmoid(
-    #     params_matrix)) @ np.ones((M, 1))
-    # del_theta = -del_theta_one + del_theta_two
-    #
-    # del_beta_one = np.where(np.isnan(data.T), 0, data_complement.T) @ np.ones(
-    #     (N, 1))
-    # del_beta_two = np.where(np.isnan(data.T), 0, sigmoid(
-    #     params_matrix).T) @ np.ones((N, 1))
-    # del_beta = del_beta_one - del_beta_two
-
     # Grad. desc. update.
     theta = theta + lr * del_theta
     beta = beta + lr * del_beta
@@ -233,7 +216,7 @@ def main():
     # learning_rates = [0.0001]
     learning_rates = [0.0001]
     # num_iters = [200,]
-    num_iters = [100]
+    num_iters = [50]
     for learning_rate in learning_rates:
         for num_iter in num_iters:
             theta, beta, val_accs, neg_llds_train, neg_llds_val, train_accs = irt(

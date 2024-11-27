@@ -1,5 +1,5 @@
-import random 
-import numpy as np 
+import random
+import numpy as np
 from utils import (
     load_valid_csv,
     load_public_test_csv,
@@ -8,7 +8,8 @@ from utils import (
 )
 from sklearn.impute import KNNImputer
 from knn import knn_impute_by_user
-from item_response import *
+from item_response import update_theta_beta, sigmoid
+
 
 def bagging(matrix, n):
     """
@@ -18,13 +19,16 @@ def bagging(matrix, n):
     height, width = matrix.shape
     # For each step, randomly generate a number from 0 to height-1, corresponding to index of the row of `matrix`
     # that we are going to sample
-    ensemble_indices =  np.array([[random.randint(0, height-1) for _ in range(height)] for _ in range(n)])
+    ensemble_indices = np.array(
+        [[random.randint(0, height - 1) for _ in range(height)] for _ in
+         range(n)])
     # `ensemble_indices` is an array of shape (n, 524), where the each row includes the indices of the rows in the 
     # original matrix `matrix` that were sampled.
     # Using advanced numpy indexing, for each of the n rows (each row corresponding to a bag) we 
     # extract the required rows from `matrix`. 
     ensemble = np.array([matrix[inds] for inds in ensemble_indices])
     return ensemble
+
 
 class Learner:
     """
@@ -65,26 +69,65 @@ class Learner:
         Assumes self.fit has already been called.
         """
         raise NotImplementedError
-    
 
 
 class KNNLearner(Learner):
     """
     Learner implementation of user-based KNN
     """
+
     def __init__(self, k, name="KNN"):
         hyper = {"k": k}
         model = KNNImputer(n_neighbors=k)
-        super().__init__(name=name, model = model, hyper=hyper)
-    
+        super().__init__(name=name, model=model, hyper=hyper)
+
     def fit(self, matrix):
         self.model.fit(matrix)
         self.fitted = True
-    
+
     def predict(self, matrix):
         if not self.fitted:
             raise BaseException("Call self.fit before self.predict!")
         return self.model.transform(matrix)
+
+
+class IRTLearner(Learner):
+    """
+    Learner implementation of IRT.
+    """
+
+    def __init__(self, iterations, learning_rate, name="IRT"):
+        hyper = {"iterations": iterations, "learning_rate": learning_rate}
+        model = {'theta': None, 'beta': None}
+        super().__init__(name=name, model=model, hyper=hyper)
+
+    def fit(self, matrix):
+        N = len(matrix)
+        M = len(matrix[0])
+        theta = np.ones((N, 1)) * 0
+        beta = np.ones((M, 1)) * 0
+
+        iterations = self.hyper['iterations']
+        learning_rate = self.hyper['learning_rate']
+
+        for i in range(iterations):
+            theta, beta = update_theta_beta(matrix, learning_rate, theta, beta)
+
+        self.model['theta'] = theta
+        self.model['beta'] = beta
+        self.fitted = True
+
+    def predict(self, matrix):
+        if not self.fitted:
+            raise Exception('Call self.fit before self.predict!')
+        N = len(matrix)
+        M = len(matrix[0])
+        theta = self.model['theta']
+        beta = self.model['beta']
+
+        params_matrix = theta @ np.ones((1, M)) - np.ones((N, 1)) @ beta.T
+        preds = sigmoid(params_matrix) > 0.5
+        return preds
 
 
 def ensemble_predict(orig_matrix, ensemble, learner, display=False):
@@ -100,14 +143,14 @@ def ensemble_predict(orig_matrix, ensemble, learner, display=False):
         if display:
             singular_acc = sparse_matrix_evaluate(test_data, mat)
             print(f"singular_acc: {singular_acc}")
-    
+
     # stacked = np.stack(pred_mats, axis=2)
     avg = np.mean(pred_mats, axis=0)
     # avg_rounded = avg.round(decimals=0)
 
     # print(avg_rounded)
     return avg
-    
+
     return avg_rounded
 
 
@@ -117,21 +160,35 @@ if __name__ == "__main__":
     test_data = load_public_test_csv("./data")
 
     ensemble = bagging(sparse_matrix, 3)
-    
+
     # ---- KNN ----
     k = 11
     knn_learner = KNNLearner(k=k)
 
     # ---- Prob ----
-    ...
+    learning_rate = 0.005
+    iterations = 200
+    irt_learner = IRTLearner(iterations, learning_rate)
 
     # ---- NN ----
     ...
-
-    final_mat = ensemble_predict(sparse_matrix, ensemble, knn_learner, display=True)
+    # ---- KNN Ensemble ----
+    final_mat = ensemble_predict(sparse_matrix, ensemble, irt_learner,
+                                 display=True)
     acc = sparse_matrix_evaluate(test_data, final_mat)
-    print(f"ensemble_acc: {acc}")
+    print(f"[KNN] ensemble_acc: {acc}")
 
     knn_learner.fit(sparse_matrix)
     orig_mat_res = knn_learner.predict(sparse_matrix)
-    print(f"original_acc: {sparse_matrix_evaluate(test_data, orig_mat_res)}")    
+    print(f"[KNN] original_acc: {sparse_matrix_evaluate(test_data, orig_mat_res)}")
+
+    # ---- IRT Ensemble ----
+    final_mat = ensemble_predict(sparse_matrix, ensemble, knn_learner,
+                                 display=True)
+    acc = sparse_matrix_evaluate(test_data, final_mat)
+    print(f"[IRT] ensemble_acc: {acc}")
+
+    irt_learner.fit(sparse_matrix)
+    orig_mat_res = irt_learner.predict(sparse_matrix)
+    print(
+        f"[IRT] original_acc: {sparse_matrix_evaluate(test_data, orig_mat_res)}")
