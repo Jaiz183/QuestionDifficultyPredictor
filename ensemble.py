@@ -173,7 +173,7 @@ if __name__ == "__main__":
     # ---- NN ----
     ...
     # ---- KNN Ensemble ----
-    final_mat = ensemble_predict(sparse_matrix, ensemble, irt_learner,
+    final_mat = ensemble_predict(sparse_matrix, ensemble, knn_learner,
                                  display=True)
     acc = sparse_matrix_evaluate(test_data, final_mat)
     print(f"[KNN] ensemble_acc: {acc}")
@@ -184,7 +184,7 @@ if __name__ == "__main__":
         f"[KNN] original_acc: {sparse_matrix_evaluate(test_data, orig_mat_res)}")
 
     # ---- IRT Ensemble ----
-    final_mat = ensemble_predict(sparse_matrix, ensemble, knn_learner,
+    final_mat = ensemble_predict(sparse_matrix, ensemble, irt_learner,
                                  display=True)
     acc = sparse_matrix_evaluate(test_data, final_mat)
     print(f"[IRT] ensemble_acc: {acc}")
