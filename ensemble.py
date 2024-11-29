@@ -11,6 +11,8 @@ from knn import knn_impute_by_user
 from item_response import update_theta_beta, sigmoid
 
 
+# random.seed(1)
+random.seed(8)
 def bagging(matrix, n):
     """
     Given a matrix where "points" are rows and features are columns,
@@ -90,6 +92,24 @@ class KNNLearner(Learner):
             raise BaseException("Call self.fit before self.predict!")
         return self.model.transform(matrix)
 
+class PartBLearner(Learner):
+    """
+    Learner implementation of user-based KNN
+    """
+    def __init__(self, k, name="KNN"):
+        hyper = {"k": k}
+        model = KNNImputer(n_neighbors=k)
+        super().__init__(name=name, model = model, hyper=hyper)
+    
+    def fit(self, matrix):
+        self.model.fit(matrix)
+        self.fitted = True
+    
+    def predict(self, matrix):
+        if not self.fitted:
+            raise BaseException("Call self.fit before self.predict!")
+        return self.model.transform(matrix)
+
 
 class IRTLearner(Learner):
     """
@@ -152,6 +172,7 @@ def ensemble_predict(orig_matrix, ensemble, learner, display=False):
     return avg
 
     return avg_rounded
+
 
 
 if __name__ == "__main__":
