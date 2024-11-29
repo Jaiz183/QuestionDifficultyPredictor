@@ -90,6 +90,7 @@ def knn_subset_questions(train_data: np.ndarray):
         # print(curr_train_data.shape)
         # print(preds.shape)
         final_matrix[curr_question_id] = preds[0]
+        print(i)
 
     return final_matrix
 
@@ -140,8 +141,6 @@ def knn_subset_disjoint_sets(train_data: np.ndarray):
 
     return final_matrix
 
-
-
     # print(questions)
 
 
@@ -150,14 +149,14 @@ if __name__ == "__main__":
     val_data = load_valid_csv("./data")
     test_data = load_public_test_csv("./data")
 
-    # preds = knn_subset_questions(train_data)
-    # val_accs = sparse_matrix_evaluate(val_data, preds.T)
-    # test_accs = sparse_matrix_evaluate(test_data, preds)
-    # print(val_accs)
-    # print(test_accs)
-
-    preds = knn_subset_disjoint_sets(train_data)
+    preds = knn_subset_questions(train_data)
     val_accs = sparse_matrix_evaluate(val_data, preds.T)
     test_accs = sparse_matrix_evaluate(test_data, preds.T)
     print(val_accs)
     print(test_accs)
+
+    # preds = knn_subset_disjoint_sets(train_data)
+    # val_accs = sparse_matrix_evaluate(val_data, preds.T)
+    # test_accs = sparse_matrix_evaluate(test_data, preds.T)
+    # print(val_accs)
+    # print(test_accs)
