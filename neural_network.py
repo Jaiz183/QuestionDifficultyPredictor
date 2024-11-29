@@ -12,6 +12,10 @@ from utils import (
     load_train_sparse,
 )
 
+hyper = [10, 50, 100, 200, 500]
+max = {}
+for h in hyper:
+    max[h] = 0
 
 def load_data(base_path="./data"):
     """Load the data in PyTorch Tensor.
@@ -134,7 +138,10 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
             train_loss += loss.item()
             optimizer.step()
 
+
         valid_acc = evaluate(model, zero_train_data, valid_data)
+        if valid_acc > max[k]:
+            max[k] = valid_acc
         print(
             "Epoch: {} \tTraining Cost: {:.6f}\t " "Valid Acc: {}".format(
                 epoch, train_loss, valid_acc
