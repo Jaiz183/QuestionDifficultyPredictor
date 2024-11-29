@@ -164,29 +164,41 @@ def evaluate(data, theta, beta):
 
 
 def plot_statistics(val_accs, train_llds, val_llds, train_accs):
-    fig, axs = plt.subplots(3, 1, figsize=(10, 20), layout='constrained')
+    fig, axs = plt.subplots(4, 1, figsize=(10, 20), layout='constrained')
+    # Accuracies
     num_iters = list(range(len(val_accs)))
     axs[0].plot(num_iters, val_accs)
     axs[0].set_xlabel('Iteration')
     axs[0].set_ylabel('Validation Acc.')
 
-    axs[1].plot(num_iters, train_llds)
-    axs[1].set_xlabel('Iteration')
-    axs[1].set_ylabel('Negative LLD')
-    axs[1].set_title('Training Negative LLD')
-
-    # print(val_llds)
-    axs[2].plot(num_iters, val_llds)
-    axs[2].set_xlabel('Iteration')
-    axs[2].set_ylabel('Negative LLD')
-    axs[2].set_title('Validation Negative LLD')
-
-    # print(val_llds)
     axs[0].plot(num_iters, train_accs)
     axs[0].set_xlabel('Iteration')
     axs[0].set_ylabel('Train Acc.')
     axs[0].set_title('Accuracy')
     axs[0].legend(['Val. Acc.', 'Train Acc.'])
+
+    # Likelihoods separate.
+    axs[1].plot(num_iters, train_llds)
+    axs[1].set_xlabel('Iteration')
+    axs[1].set_ylabel('Negative LLD')
+    axs[1].set_title('Train Negative LLDs')
+
+    axs[2].plot(num_iters, val_llds)
+    axs[2].set_xlabel('Iteration')
+    axs[2].set_ylabel('Negative LLD')
+    axs[2].set_title('Validation Negative LLDs')
+
+    # Likelihoods together.
+    axs[3].plot(num_iters, train_llds, label='Train Neg. LLD')
+    axs[3].set_xlabel('Iteration')
+    axs[3].set_ylabel('Negative LLD')
+
+    axs[3].plot(num_iters, val_llds, label='Val. Neg. LLD')
+    axs[3].set_xlabel('Iteration')
+    axs[3].set_ylabel('Negative LLD')
+    axs[3].set_title('Negative LLDs')
+
+    axs[3].legend()
 
     plt.show()
 
@@ -194,7 +206,7 @@ def plot_statistics(val_accs, train_llds, val_llds, train_accs):
 def compute_prob_correct(betas: np.ndarray, thetas: np.ndarray,
                          question_id: int):
     beta = betas[question_id]
-    probabilities = np.exp(thetas - beta) / 1 + np.exp(thetas - beta)
+    probabilities = sigmoid(thetas - beta)
 
     return probabilities
 
@@ -214,9 +226,9 @@ def main():
     # Store hyperparams to retrieve max val accuracy later.
     hyperparams = []
     # learning_rates = [0.0001]
-    learning_rates = [0.0001]
-    # num_iters = [200,]
-    num_iters = [50]
+    learning_rates = [0.1, 0.01, 0.005, 0.001]
+    # num_iters = [10, ]
+    num_iters = [50, 100, 200, 400]
     for learning_rate in learning_rates:
         for num_iter in num_iters:
             theta, beta, val_accs, neg_llds_train, neg_llds_val, train_accs = irt(
@@ -252,10 +264,14 @@ def main():
 
     # Pick 3 questions.
     questions = np.random.choice(np.arange(M), 3)
-    fig, axs = plt.subplots(1, 1, figsize=(10, 20), layout='constrained')
     for question in questions:
         prob_values = compute_prob_correct(beta, theta, question)
-        axs.plot(theta, prob_values)
+        plt.scatter(theta, prob_values, 2, label=f'Question Number {question}')
+
+    plt.xlabel('theta')
+    plt.ylabel('Probability of Answering Question Correctly')
+    plt.legend()
+    plt.show()
 
     #####################################################################
     #                       END OF YOUR CODE                            #
