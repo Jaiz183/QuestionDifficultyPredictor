@@ -6,27 +6,11 @@ import csv
 import os
 
 import numpy as np
-from sklearn.ensemble import AdaBoostClassifier
 from sklearn.impute import KNNImputer
-from ensemble import KNNLearner
 from utils import load_train_sparse, sparse_matrix_evaluate, load_valid_csv, \
     load_public_test_csv
 
 from scipy.cluster.hierarchy import DisjointSet
-
-
-def add_metadata() -> np.ndarray:
-    """
-    Returns data matrix with metadata added.
-    """
-    ...
-
-
-def compute_pcs(k) -> np.ndarray:
-    """
-    Returns first k PCs of data.
-    """
-    ...
 
 
 def load_meta(path):
@@ -59,7 +43,8 @@ def load_meta(path):
 
 def knn_subset_questions(train_data: np.ndarray):
     """
-    ...
+    Computes item-based kNN by running it once for each question and subsetting
+    the training data to only questions in the same subject.
     """
     # Ensure that each question is a row.
     train_data = train_data.T
@@ -96,6 +81,12 @@ def knn_subset_questions(train_data: np.ndarray):
 
 
 def knn_subset_disjoint_sets(train_data: np.ndarray):
+    """
+    Computes item-based kNN by computing disjoint sets of questions based on
+    their subjects and running it once on each disjoint set. Specifically, a
+    question is in a set iff it shares a subject with some other question in
+    that set.
+    """
     # Ensure that each question is a row.
     train_data = train_data.T
     final_matrix = np.zeros(train_data.shape)
@@ -104,13 +95,10 @@ def knn_subset_disjoint_sets(train_data: np.ndarray):
     subject_ids = metadata['subject_id']
     num_questions = len(question_ids)
     NUM_NEIGHBOURS = 11
-    num_students = train_data.shape[1]
 
-    # TODO: remove the first subject.
     disj_sets_subjects = DisjointSet()
     for i in range(num_questions):
         curr_subject_id = subject_ids[i]
-        curr_question_id = question_ids[i]
 
         # Add all subjects.
         last_subject = curr_subject_id[0]
@@ -135,13 +123,11 @@ def knn_subset_disjoint_sets(train_data: np.ndarray):
                 questions[j].append(curr_question_id)
 
     for question in questions:
-        knn = KNNImputer(n_neighbors=11, keep_empty_features=True)
+        knn = KNNImputer(n_neighbors=NUM_NEIGHBOURS, keep_empty_features=True)
         preds = knn.fit_transform(train_data[question])
         final_matrix[question] = preds
 
     return final_matrix
-
-    # print(questions)
 
 
 if __name__ == "__main__":
@@ -149,12 +135,14 @@ if __name__ == "__main__":
     val_data = load_valid_csv("./data")
     test_data = load_public_test_csv("./data")
 
+    # Method 1 - subset.
     preds = knn_subset_questions(train_data)
     val_accs = sparse_matrix_evaluate(val_data, preds.T)
     test_accs = sparse_matrix_evaluate(test_data, preds.T)
     print(val_accs)
     print(test_accs)
 
+    # Method 2 - disjoint set.
     # preds = knn_subset_disjoint_sets(train_data)
     # val_accs = sparse_matrix_evaluate(val_data, preds.T)
     # test_accs = sparse_matrix_evaluate(test_data, preds.T)
