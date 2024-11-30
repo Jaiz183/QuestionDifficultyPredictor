@@ -1,15 +1,19 @@
 import os
 import csv
 import ast
-from pprint import pprint 
+from pprint import pprint
+
+from matplotlib import pyplot as plt
+
 from utils import _load_csv, load_train_sparse, \
     load_valid_csv, sparse_matrix_evaluate, load_public_test_csv
-import numpy as np 
+import numpy as np
 from sklearn.impute import KNNImputer
-from ensemble import bagging 
+from ensemble import bagging
 
 # manually seen form csv
 NUM_SUBJ = 388
+
 
 def load_meta(path):
     """
@@ -35,7 +39,6 @@ def load_meta(path):
                 print(f"Index Error: {row}")
                 pass
     return data
-
 
 
 def compute_subject_matrix():
@@ -67,7 +70,7 @@ def compute_subject_matrix():
                 # student if the student answered correctly.
                 new_mat[user_id][sub_id] += answer
                 subj_count[user_id, sub_id] += 1
-    
+
     # If some student did not answer any questions 
     # for a given subject, we put nan to avoid 
     # division by 0 in the next step
@@ -77,10 +80,10 @@ def compute_subject_matrix():
     # Compute each cell as described in the docstring
     for i in range(num_users):
         for j in range(num_questions):
-            ans = sparse_matrix[i,j]
+            ans = sparse_matrix[i, j]
             if np.isnan(ans):
                 continue
-            contributions[i][j] += ans*len(metadata[j])
+            contributions[i][j] += ans * len(metadata[j])
     assert np.nansum(new_mat) == np.nansum(contributions)
 
     # Right now `new_mat` has absolute counts so we divide 
@@ -90,14 +93,14 @@ def compute_subject_matrix():
     # Need to do this for subjects for which not a 
     # single question was observed.
     for i in range(NUM_SUBJ):
-        row = final_mat[:,i]
+        row = final_mat[:, i]
         if np.isnan(row).all():
-            final_mat[:,i] = np.zeros((num_users,)) + 1000000
+            final_mat[:, i] = np.zeros((num_users,)) + 1000000
 
     return final_mat
 
 
-if __name__=="__main__":
+def run_augmented_knn_compress(k1: int, k2: int):
     # loading the test data and validation data
     test_data = load_public_test_csv("./data")
     # val_data = load_valid_csv("./data")
@@ -113,41 +116,94 @@ if __name__=="__main__":
     final_mat = compute_subject_matrix()
 
     ###
-    # Perform KNN on the reduced student-subject 
+    # Perform KNN on the reduced student-subject
     # matrix to fill in missing values (imputation)
     ###
-    k1 = 11
     nbrs = KNNImputer(n_neighbors=k1)
     fitted_values = nbrs.fit_transform(final_mat)
-    
+
     ###
-    # Fill in missing values in the original sparse 
+    # Fill in missing values in the original sparse
     # matrix by inference of the student/subject matrix,
     # by looking for question and a student how
-    # well the student performed on average 
+    # well the student performed on average
     # on the subjects related to that question
     ###
     sparse_check = np.copy(sparse_matrix)
     for i in range(num_users):
         for j in range(num_questions):
-            ans = sparse_matrix[i,j]
+            ans = sparse_matrix[i, j]
             if np.isnan(ans):
                 subjects = metadata[j]
-                sparse_check[i,j] = \
-                    sum([fitted_values[i][subj] for subj in subjects])/len(subjects)
+                sparse_check[i, j] = \
+                    sum([fitted_values[i][subj] for subj in subjects]) / len(
+                        subjects)
 
-    print(f"Validation Accuracy with 1st KNN: {sparse_matrix_evaluate(val_data, sparse_check)}")
-    print(f"Test Accuracy with 1st KNN: {sparse_matrix_evaluate(test_data, sparse_check)}")
+    print(
+        f"Validation Accuracy with 1st KNN: {sparse_matrix_evaluate(val_data, sparse_check)}")
+    print(
+        f"Test Accuracy with 1st KNN: {sparse_matrix_evaluate(test_data, sparse_check)}")
 
     ### (Optional Step)
-    # Fill in missing values in the original sparse 
+    # Fill in missing values in the original sparse
     # matrix by inference already filled sparse matrix
-    # by the step above, effectively using that 
+    # by the step above, effectively using that
     # filled matrix as the training data.
     ###
-    k2 = 11
     nbrs = KNNImputer(n_neighbors=k2)
     nbrs.fit(sparse_check)
     fmat = nbrs.transform(sparse_matrix)
-    print(f"Validation Accuracy with 2nd KNN: {sparse_matrix_evaluate(val_data, fmat)}")
-    print(f"Test Accuracy with 2nd KNN: {sparse_matrix_evaluate(test_data, fmat)}")
+    val_acc = sparse_matrix_evaluate(val_data, fmat)
+    test_acc = sparse_matrix_evaluate(test_data, fmat)
+    print(
+        f"Validation Accuracy with 2nd KNN: {val_acc}")
+    print(
+        f"Test Accuracy with 2nd KNN: {test_acc}")
+
+    return val_acc, test_acc
+
+
+if __name__ == "__main__":
+    fig, axs = plt.subplots(2, 1, figsize=(10, 20), layout='constrained')
+
+    k1_lst = [11, 20, 35, 40]
+    k2_lst = [11, 20, 35, 40]
+
+    val_accs_k1_fixed = []
+    test_accs_k1_fixed = []
+
+    # Fixed k1 at 35.
+    for k2 in k2_lst:
+        val_acc, test_acc = run_augmented_knn_compress(35, k2)
+        val_accs_k1_fixed.append(val_acc)
+        test_accs_k1_fixed.append(test_acc)
+
+    axs[0].plot(k2_lst, val_accs_k1_fixed, label='Validation Accuracy')
+
+    axs[0].plot(k2_lst, test_accs_k1_fixed, label='Test Accuracy')
+    axs[0].set_xlabel('k2')
+    axs[0].set_ylabel('Accuracy')
+    axs[0].set_title('Accuracies at k1 = 35')
+    axs[0].legend()
+
+    val_accs_k2_fixed = []
+    test_accs_k2_fixed = []
+
+    # Fixed k2 at 35.
+    for k1 in k1_lst:
+        val_acc, test_acc = run_augmented_knn_compress(k1, 35)
+        val_accs_k2_fixed.append(val_acc)
+        test_accs_k2_fixed.append(test_acc)
+
+    axs[1].plot(k1_lst, val_accs_k2_fixed, label='Validation Accuracy')
+
+    axs[1].plot(k1_lst, test_accs_k2_fixed, label='Test Accuracy')
+    axs[1].set_xlabel('k1')
+    axs[1].set_ylabel('Accuracy')
+    axs[1].set_title('Accuracies at k2 = 35')
+    axs[1].legend()
+
+    plt.show()
+
+
+
