@@ -119,7 +119,6 @@ def main():
     #####################################################################
 
     knn_func = knn_impute_by_item 
-    # knn_func = knn_impute_by_user
 
     k_vals = [1, 6, 11, 16, 21, 26]
     accs = np.array([knn_func(sparse_matrix, val_data, k) for k in k_vals])
